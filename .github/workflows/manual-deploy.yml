@@ -1,4 +1,4 @@
-name: Manual Push GHCR (mathflix2:latest)
+name: Manual Push GHCR (Frontend & API)
 
 on:
   workflow_dispatch:
@@ -13,6 +13,9 @@ jobs:
       contents: read
       packages: write
     
+    env:
+      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,13 +25,20 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN || github.token }}
+          password: ${{ env.GHCR_TOKEN || github.token }}
 
-      - name: Build and push Docker image
+      - name: Build and push Frontend
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile
           push: true
-          # Menggunakan github.repository secara dinamis agar otomatis mengikuti nama repo baru
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}:latest
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/mathflix2-frontend:latest
+
+      - name: Build and push API
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api
+          file: ./api/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/mathflix2-api:latest

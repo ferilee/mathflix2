@@ -1,6 +1,6 @@
 services:
   mathflix:
-    image: ghcr.io/ferilee/mathflix2:latest
+    image: ghcr.io/ferilee/mathflix2-frontend:latest
     container_name: mathflix2-prod
     ports:
       - "9111:80"
@@ -8,6 +8,17 @@ services:
       - .env
     environment:
       - VITE_API_URL=/api
+    networks:
+      - ferileenet
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  api:
+    image: ghcr.io/ferilee/mathflix2-api:latest
+    container_name: mathflix2-api
+    env_file:
+      - .env
     networks:
       - ferileenet
     restart: unless-stopped

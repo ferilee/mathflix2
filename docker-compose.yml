@@ -10,10 +10,21 @@ services:
     networks:
       - ferileenet
     restart: always
+    depends_on:
+      - api
+
+  api:
+    build:
+      context: ./api
+    container_name: mathflix-api
+    ports:
+      - "3002:3000"
+    env_file:
+      - .env
+    networks:
+      - ferileenet
+    restart: always
 
 networks:
   ferileenet:
     external: true
-
-# Catatan: Layanan Storage (RustFS) telah dipindahkan ke folder _infrastructure
-# untuk digunakan secara global oleh semua proyek melalui network 'ferileenet'.
