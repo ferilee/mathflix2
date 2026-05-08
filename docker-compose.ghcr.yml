@@ -1,7 +1,7 @@
 services:
   mathflix:
-    image: ghcr.io/ferilee/mathflix:latest
-    container_name: mathflix-prod
+    image: ghcr.io/ferilee/mathflix2:latest
+    container_name: mathflix2-prod
     ports:
       - "9111:80"
     env_file:
