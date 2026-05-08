@@ -16,7 +16,7 @@ export const resolveStorageUrl = (path: string | null | undefined) => {
   const apiBase =
     runtimeConfig?.API_URL ||
     import.meta.env.VITE_API_URL ||
-    "http://localhost:3000";
+    (import.meta.env.PROD ? "/api" : "http://localhost:3000");
 
   const encodeStoragePath = (rawPath: string) => {
     const prefix = "/storage/";

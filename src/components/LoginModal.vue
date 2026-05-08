@@ -72,7 +72,8 @@ const emit = defineEmits(['close', 'logged-in']);
 
 const handleGoogleLogin = () => {
   // Redirect ke backend OAuth endpoint
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  // Gunakan /api secara default di produksi agar mengikuti domain saat ini
+  const apiUrl = import.meta.env.PROD ? '/api' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
   window.location.href = `${apiUrl}/auth/google`;
 };
 

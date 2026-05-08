@@ -6,7 +6,7 @@ const baseURL =
   import.meta.env.VITE_BILLING_API_URL ||
   runtimeConfig?.API_URL ||
   import.meta.env.VITE_API_URL ||
-  "http://localhost:3000";
+  (import.meta.env.PROD ? "/api" : "http://localhost:3000");
 
 const billingApi = axios.create({
   baseURL,
