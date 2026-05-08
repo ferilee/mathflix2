@@ -1,12 +1,10 @@
-name: Manual Push GHCR (ferilee/mathflix:latest)
+name: Manual Push GHCR (mathflix2:latest)
 
 on:
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  # Menggunakan lowercase untuk menghindari masalah case-sensitivity di GHCR
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -23,7 +21,6 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          # Gunakan GHCR_TOKEN jika ada, jika tidak gunakan GITHUB_TOKEN bawaan
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN || github.token }}
 
@@ -32,6 +29,6 @@ jobs:
         with:
           context: .
           push: true
-          # Mengonversi nama image ke lowercase (standar Docker/GHCR)
+          # Menggunakan github.repository secara dinamis agar otomatis mengikuti nama repo baru
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/mathflix:latest
+            ${{ env.REGISTRY }}/${{ github.repository }}:latest
