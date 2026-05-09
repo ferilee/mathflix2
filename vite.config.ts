@@ -10,6 +10,7 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "pwa-icon.svg"],
       workbox: {
+        navigateFallbackDenylist: [/^\/api/],
         globIgnores: ["**/config.js"],
       },
       devOptions: {
