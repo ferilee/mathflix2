@@ -97,10 +97,7 @@ app.all('*', (c) => {
   return c.json([]);
 });
 
-if (import.meta.main) {
-  const port = Number(process.env.PORT || 3000);
-  Bun.serve({ port, fetch: app.fetch });
-  console.log(`[mathflix-api] listening on http://localhost:${port}`);
-}
-
-export default app;
+export default {
+  port: Number(process.env.PORT || 3000),
+  fetch: app.fetch,
+};
