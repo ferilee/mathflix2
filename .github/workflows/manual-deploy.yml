@@ -1,6 +1,9 @@
-name: Manual Push GHCR (Frontend & API)
+name: Deploy to GHCR (Frontend & API)
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 env:
