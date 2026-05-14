@@ -1,0 +1,26 @@
+Konfigurasi di Google Cloud Console Anda sudah **BENAR**.
+*   **Authorized JavaScript origins**: `https://mathflix.gemastika.or.id` (Cocok)
+*   **Authorized redirect URIs**: `https://mathflix.gemastika.or.id/api/auth/google/callback` (Cocok dengan `.env`)
+
+Jika Anda masih melihat **"halaman blank hitam"**, itu artinya browser Anda **masih menjalankan Service Worker versi lama** yang mencegat rute `/api`. Fix yang saya berikan di `vite.config.ts` baru akan bekerja jika Service Worker tersebut diperbarui atau dihapus.
+
+### Langkah Pasti untuk Memperbaikinya:
+
+1.  **Push perbaikan Backend terbaru**:
+    Pastikan Anda sudah melakukan `git push` untuk perbaikan `api/index.ts` yang saya berikan di pesan sebelumnya (untuk memperbaiki error `EADDRINUSE` yang membuat backend mati).
+
+2.  **Redeploy di Arcane**:
+    Buka panel **Arcane**, lalu klik **Redeploy** pada proyek `mathflix`. Ini penting agar Arcane menarik image terbaru yang sudah berisi fix `vite.config.ts` (PWA denylist) dan fix `api/index.ts` (backend crash).
+
+3.  **Hapus "Sampah" di Browser (PENTING)**:
+    Meskipun server sudah diperbarui, browser Anda seringkali tetap menyimpan Service Worker lama.
+    *   Buka `https://mathflix.gemastika.or.id/`
+    *   Tekan **F12** -> Tab **Application** -> **Service Workers**.
+    *   Klik **Unregister** pada semua yang ada di sana.
+    *   Tekan **Ctrl + F5** (Hard Refresh).
+
+**Analisis Visual:**
+*   Halaman **Blank Hitam** = Frontend (PWA) mencegat rute API (masalah di `vite.config.ts`, sudah saya fix di kode, tinggal di-deploy).
+*   Halaman **502 Bad Gateway** = Backend mati (masalah di `api/index.ts`, sudah saya fix di kode, tinggal di-deploy).
+
+Setelah Anda melakukan **Redeploy** dan **Unregister Service Worker**, tombol "Masuk dengan Google" akan langsung mengarah ke halaman login Google yang semestinya.
