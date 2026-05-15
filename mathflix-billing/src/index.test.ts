@@ -177,8 +177,16 @@ describe("mathflix-billing endpoints", () => {
   });
 
   test("DELETE /students/:id", async () => {
+    await app.request("http://local/billing/shop/buy", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ student_id: "s2", item_id: "i1" }),
+    });
     const res = await app.request("http://local/students/s2", { method: "DELETE" });
     expect(res.status).toBe(200);
+    const studentCheck = await app.request("http://local/students?teacher_id=t1");
+    const studentBody = await studentCheck.json();
+    expect(studentBody.data.some((row: any) => row.id === "s2")).toBe(false);
   });
 
   test("GET /billing/leaderboard", async () => {
@@ -200,6 +208,27 @@ describe("mathflix-billing endpoints", () => {
       body: JSON.stringify({ student_id: "s1", item_id: "i1" }),
     });
     expect(ok.status).toBe(200);
+
+    const missingStudent = await app.request("http://local/billing/shop/buy", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ student_id: "s404", item_id: "i1" }),
+    });
+    expect(missingStudent.status).toBe(404);
+
+    const missingItem = await app.request("http://local/billing/shop/buy", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ student_id: "s1", item_id: "i404" }),
+    });
+    expect(missingItem.status).toBe(404);
+
+    const lowAp = await app.request("http://local/billing/shop/buy", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ student_id: "s2", item_id: "i1" }),
+    });
+    expect(lowAp.status).toBe(400);
   });
 
   test("GET /billing/shop/inventory", async () => {
@@ -215,6 +244,20 @@ describe("mathflix-billing endpoints", () => {
   });
 
   test("POST /billing/shop/use", async () => {
+    const badReq = await app.request("http://local/billing/shop/use", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(badReq.status).toBe(400);
+
+    const notFound = await app.request("http://local/billing/shop/use", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ student_id: "s1", inventory_id: "missing" }),
+    });
+    expect(notFound.status).toBe(404);
+
     const buy = await app.request("http://local/billing/shop/buy", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -229,6 +272,28 @@ describe("mathflix-billing endpoints", () => {
       body: JSON.stringify({ student_id: "s1", inventory_id: invBody[0].id }),
     });
     expect(useRes.status).toBe(200);
+
+    const alreadyUsed = await app.request("http://local/billing/shop/use", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ student_id: "s1", inventory_id: invBody[0].id }),
+    });
+    expect(alreadyUsed.status).toBe(400);
+
+    const buyS1 = await app.request("http://local/billing/shop/buy", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ student_id: "s1", item_id: "i1" }),
+    });
+    expect(buyS1.status).toBe(200);
+    const invS1 = await app.request("http://local/billing/shop/inventory?student_id=s1");
+    const invS1Body = await invS1.json();
+    const unauthorizedUse = await app.request("http://local/billing/shop/use", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ student_id: "s2", inventory_id: invS1Body[1].id }),
+    });
+    expect(unauthorizedUse.status).toBe(403);
   });
 
   test("PUT /billing/students/:studentId/gamification", async () => {
@@ -238,6 +303,18 @@ describe("mathflix-billing endpoints", () => {
       body: JSON.stringify({ hp: 40, ap: 25 }),
     });
     expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("debuff");
+
+    const capRes = await app.request("http://local/billing/students/s1/gamification", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ hp: 120, ap: -50 }),
+    });
+    const capBody = await capRes.json();
+    expect(capBody.hp).toBe(100);
+    expect(capBody.ap).toBe(0);
+    expect(capBody.status).toBe("active");
   });
 
   test("GET /billing/access", async () => {
@@ -245,6 +322,8 @@ describe("mathflix-billing endpoints", () => {
     expect(bad.status).toBe(400);
     const ok = await app.request("http://local/billing/access?student_id=s1");
     expect(ok.status).toBe(200);
+    const missing = await app.request("http://local/billing/access?student_id=s404");
+    expect(missing.status).toBe(404);
   });
 
   test("GET /billing/teachers/exemptions", async () => {
@@ -287,6 +366,13 @@ describe("mathflix-billing endpoints", () => {
     expect(add.status).toBe(200);
     const del = await app.request("http://local/billing/teachers/t1/policy", { method: "DELETE" });
     expect(del.status).toBe(200);
+
+    const bad = await app.request("http://local/billing/teachers/t1/policy", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ grace_days: "abc" }),
+    });
+    expect(bad.status).toBe(400);
   });
 
   test("POST /billing/teachers/:teacherId/confirm-payment", async () => {
@@ -296,6 +382,13 @@ describe("mathflix-billing endpoints", () => {
       body: JSON.stringify({ period_days: 30 }),
     });
     expect(res.status).toBe(200);
+
+    const badPeriod = await app.request("http://local/billing/teachers/t1/confirm-payment", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ period_days: 0 }),
+    });
+    expect(badPeriod.status).toBe(400);
   });
 
   test("GET & POST /billing/settings", async () => {
@@ -320,6 +413,18 @@ describe("mathflix-billing endpoints", () => {
       }),
     });
     expect(res.status).toBe(200);
+
+    const batch = await app.request("http://local/billing/students/sync", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify([
+        { id: "s4", full_name: "Dina", teacher_id: "t2" },
+        { id: "", full_name: "Invalid" },
+      ]),
+    });
+    expect(batch.status).toBe(200);
+    const batchBody = await batch.json();
+    expect(batchBody.upserted).toBe(1);
   });
 
   test("POST /billing/pay", async () => {
@@ -329,6 +434,20 @@ describe("mathflix-billing endpoints", () => {
       body: JSON.stringify({ teacher_id: "t1", student_ids: ["s1"] }),
     });
     expect(res.status).toBe(200);
+
+    const missingTeacher = await app.request("http://local/billing/pay", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ student_ids: ["s1"] }),
+    });
+    expect(missingTeacher.status).toBe(400);
+
+    const noPayable = await app.request("http://local/billing/pay", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ teacher_id: "t404", student_ids: [] }),
+    });
+    expect(noPayable.status).toBe(400);
   });
 
   test("OAuth and fallback routes", async () => {
@@ -339,5 +458,23 @@ describe("mathflix-billing endpoints", () => {
     expect((await app.request("http://local/materials")).status).toBe(200);
     expect((await app.request("http://local/quizzes")).status).toBe(200);
     expect((await app.request("http://local/unknown")).status).toBe(200);
+  });
+
+  test("OAuth callback handles Google error response", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string) => {
+      if (url.includes("oauth2.googleapis.com/token")) {
+        return new Response(
+          JSON.stringify({ error: "invalid_grant", error_description: "Bad code" }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    }) as any;
+
+    const res = await app.request("http://local/auth/google/callback?code=bad");
+    expect(res.status).toBe(400);
+
+    globalThis.fetch = originalFetch;
   });
 });

@@ -10,7 +10,36 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  test-backend:
+    name: Test Backend Before Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install API deps
+        working-directory: api
+        run: bun install --frozen-lockfile
+
+      - name: Run API tests
+        working-directory: api
+        run: bun test
+
+      - name: Install Billing deps
+        working-directory: mathflix-billing
+        run: bun install --frozen-lockfile
+
+      - name: Run Billing tests
+        working-directory: mathflix-billing
+        run: bun test
+
   build-and-push:
+    needs: test-backend
     runs-on: ubuntu-latest
     permissions:
       contents: read
