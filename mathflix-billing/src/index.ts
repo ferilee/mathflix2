@@ -809,12 +809,11 @@ app.get('/auth/google', (c) => {
   try {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback';
-
-    console.log('[OAUTH] Initiating Google Auth with ClientID:', clientId.substring(0, 10) + '...');
-    
     if (!clientId) {
+      console.error('[OAUTH] GOOGLE_CLIENT_ID is missing.');
       return c.text('Error: GOOGLE_CLIENT_ID is not configured.', 500);
     }
+    console.log('[OAUTH] Initiating Google Auth with ClientID prefix:', `${clientId.slice(0, 10)}...`);
 
     const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=email profile`;
     return c.redirect(url);
