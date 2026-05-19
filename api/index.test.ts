@@ -127,4 +127,79 @@ describe("mathflix-api endpoints", () => {
     expect((await app.request("http://local/quizzes")).status).toBe(200);
     expect((await app.request("http://local/anything-else")).status).toBe(200);
   });
+
+  test("discussion CRUD flow works", async () => {
+    const create = await app.request("http://local/discussions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        content: "Halo diskusi",
+        author_id: "s1",
+        author_name: "Student",
+        author_role: "student",
+        category: "Umum",
+        tags: ["test"],
+      }),
+    });
+    expect(create.status).toBe(200);
+    const createdPost = await create.json();
+    expect(createdPost.id).toBeDefined();
+
+    const list = await app.request("http://local/discussions?user_id=guru1");
+    const listBody = await list.json();
+    expect(list.status).toBe(200);
+    expect(Array.isArray(listBody)).toBe(true);
+    expect(listBody[0].has_unread).toBe(true);
+
+    const like = await app.request(`http://local/discussions/${createdPost.id}/like`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ user_id: "guru1" }),
+    });
+    expect(like.status).toBe(200);
+
+    const comment = await app.request(`http://local/discussions/${createdPost.id}/comments`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        content: "Jawaban",
+        author_id: "guru1",
+        author_name: "Guru",
+        author_role: "guru",
+      }),
+    });
+    expect(comment.status).toBe(200);
+    const commentBody = await comment.json();
+
+    const solved = await app.request(`http://local/discussions/${createdPost.id}/solved`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ solved_comment_id: commentBody.id }),
+    });
+    expect(solved.status).toBe(200);
+
+    const read = await app.request(`http://local/discussions/${createdPost.id}/read`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ user_id: "guru1" }),
+    });
+    expect(read.status).toBe(200);
+
+    const lock = await app.request(`http://local/discussions/${createdPost.id}/lock`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ is_locked: true }),
+    });
+    expect(lock.status).toBe(200);
+
+    const deleteComment = await app.request(`http://local/discussions/comments/${commentBody.id}`, {
+      method: "DELETE",
+    });
+    expect(deleteComment.status).toBe(200);
+
+    const del = await app.request(`http://local/discussions/${createdPost.id}`, {
+      method: "DELETE",
+    });
+    expect(del.status).toBe(200);
+  });
 });

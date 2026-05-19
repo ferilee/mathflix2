@@ -395,6 +395,7 @@ import billingApi from '../api/billing';
 import { isDemoMode, enableDemo, resetDemo, getDemoStudent } from '../utils/demo';
 import { setAuthToken } from '../utils/auth';
 import { resolveStorageUrl } from '../utils/storage';
+import { useDialog } from '../utils/dialog';
 
 const router = useRouter();
 const route = useRoute();
@@ -422,6 +423,7 @@ let pollingInterval: any = null;
 const ACCESS_POLL_INTERVAL = 2000;
 const demoMode = ref(isDemoMode());
 const STUDENT_UPDATED_EVENT = 'student-updated';
+const dialog = useDialog();
 
 const openPhotoModal = () => {
   showMenu.value = false;
@@ -673,10 +675,10 @@ const handleProfileSaved = async (profileData: any) => {
         showProfilingModal.value = false;
         window.dispatchEvent(new Event(STUDENT_UPDATED_EVENT));
         
-        alert("Profil pahlawan berhasil disimpan!");
+        await dialog.alert('Profil pahlawan berhasil disimpan!', 'Profil');
     } catch(e) {
         console.error("Gagal menyimpan profil:", e);
-        alert("Terjadi kesalahan saat menyimpan profil");
+        await dialog.alert('Terjadi kesalahan saat menyimpan profil', 'Profil', 'danger');
     }
 };
 

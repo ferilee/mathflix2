@@ -8,9 +8,11 @@
 import { onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { setAuthToken, setStaffUser } from '../utils/auth';
+import { useDialog } from '../utils/dialog';
 
 const router = useRouter();
 const route = useRoute();
+const dialog = useDialog();
 
 onMounted(() => {
   const token = route.query.token as string;
@@ -30,12 +32,12 @@ onMounted(() => {
         router.push('/');
       }
     } catch (e) {
-      alert('Format data user tidak valid');
+      void dialog.alert('Format data user tidak valid', 'Login Google', 'danger');
       router.push('/login');
     }
   } else {
     // Tangani error
-    alert('Login dengan Google Gagal atau data tidak lengkap');
+    void dialog.alert('Login dengan Google gagal atau data tidak lengkap', 'Login Google', 'danger');
     router.push('/login');
   }
 });
