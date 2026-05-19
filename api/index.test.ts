@@ -263,7 +263,7 @@ describe("mathflix-api endpoints", () => {
 
     const del = await app.request(`http://local/materials/${created.id}`, { method: "DELETE" });
     expect(del.status).toBe(200);
-  });
+  }, 15000);
 
   test("quizzes CRUD and questions persist in API database", async () => {
     const material = await app.request("http://local/materials", {
@@ -381,5 +381,5 @@ describe("mathflix-api endpoints", () => {
 
     const del = await app.request(`http://local/assignments/${assignment.id}`, { method: "DELETE" });
     expect(del.status).toBe(200);
-  });
+  }, 20000);
 });

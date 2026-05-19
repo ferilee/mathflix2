@@ -98,7 +98,7 @@
            <div
              v-if="student"
              class="flex items-center gap-3 cursor-pointer"
-             @click="showMenu = !showMenu"
+             @click="openProfileModal"
            >
                <span class="hidden sm:block">{{ student.full_name }}</span>
                <div v-if="student.photo_profile" class="w-8 h-8 rounded bg-gray-700 overflow-hidden">
@@ -119,44 +119,6 @@
            </button>
 
 
-           <!-- Dropdown Menu -->
-           <transition name="fade">
-             <div v-if="showMenu" class="absolute top-full right-0 mt-3 w-56 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl py-2 flex flex-col z-[100] backdrop-blur-xl">
-                 <div class="px-4 py-3 border-b border-gray-800">
-                     <div class="text-xs text-gray-500 uppercase font-bold tracking-widest mb-1">NISN</div>
-                     <div class="text-sm font-bold text-white">{{ student?.nisn }}</div>
-                 </div>
-
-                 <router-link
-                   to="/profile"
-                   class="text-left px-4 py-3 hover:bg-gray-800/50 text-emerald-400 flex items-center gap-3 transition"
-                   @click="showMenu = false"
-                 >
-                    <span class="text-lg">👤</span>
-                    <span class="text-sm font-semibold">Profil Saya</span>
-                 </router-link>
-
-                 <button @click="showDevInfo = true; showMenu = false" class="text-left px-4 py-3 hover:bg-gray-800/50 text-indigo-400 flex items-center gap-3 transition">
-                    <span class="text-lg">ℹ️</span>
-                    <span class="text-sm font-semibold">Tentang Aplikasi</span>
-                 </button>
-
-                 <button v-if="demoMode" @click="resetDemoSession" class="text-left px-4 py-3 hover:bg-gray-800/50 text-yellow-400 flex items-center gap-3 transition">
-                    <span class="text-lg">🧹</span>
-                    <span class="text-sm font-semibold">Reset Demo</span>
-                 </button>
-
-                 <button v-if="student && !demoMode" @click="openPhotoModal" class="text-left px-4 py-3 hover:bg-gray-800/50 text-sky-400 flex items-center gap-3 transition">
-                    <span class="text-lg">🖼️</span>
-                    <span class="text-sm font-semibold">Ubah Foto Profil</span>
-                 </button>
-
-                 <button @click="logout" class="text-left px-4 py-3 hover:bg-red-900/10 text-red-500 flex items-center gap-3 transition border-t border-gray-800">
-                   <span class="text-lg">🚪</span>
-                   <span class="text-sm font-semibold">Keluar</span>
-                 </button>
-             </div>
-           </transition>
         </div>
       </div>
 
@@ -381,6 +343,70 @@
 
      <!-- Profiling Modal (Wajib isi) -->
      <ProfilingModal :is-open="showProfilingModal" :student-data="student" @saved="handleProfileSaved" />
+
+     <!-- Profile Modal -->
+     <transition name="fade">
+       <div
+         v-if="showProfileModal && student"
+         class="fixed inset-0 z-[130] flex items-center justify-center px-4"
+       >
+         <div class="absolute inset-0 bg-black/70" @click="showProfileModal = false"></div>
+         <div class="relative w-full max-w-md rounded-2xl border border-white/10 bg-gray-900 shadow-2xl overflow-hidden">
+           <div class="p-5 border-b border-white/10 flex items-start justify-between">
+             <div>
+               <div class="text-xs text-gray-400 uppercase tracking-widest font-semibold">Informasi User</div>
+               <div class="text-lg font-bold text-white mt-1">{{ student.full_name }}</div>
+             </div>
+             <button class="text-gray-400 hover:text-white" @click="showProfileModal = false">✕</button>
+           </div>
+           <div class="p-5 space-y-4">
+             <div class="flex items-center gap-4">
+               <div v-if="student.photo_profile" class="w-16 h-16 rounded-lg overflow-hidden border border-white/10">
+                 <img :src="resolveStorageUrl(student.photo_profile)" alt="Foto Profil" class="w-full h-full object-cover">
+               </div>
+               <div v-else class="w-16 h-16 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-2xl">
+                 {{ initials }}
+               </div>
+               <div class="text-sm text-gray-300 space-y-1">
+                 <div><span class="text-gray-500">Kelas:</span> {{ student.class_name || student.class || '-' }}</div>
+                 <div><span class="text-gray-500">Jurusan:</span> {{ student.major || '-' }}</div>
+                 <div><span class="text-gray-500">NISN:</span> {{ student.nisn || '-' }}</div>
+               </div>
+             </div>
+
+             <div class="grid grid-cols-1 gap-2">
+               <router-link
+                 to="/profile"
+                 class="text-left px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-emerald-400 font-semibold"
+                 @click="showProfileModal = false"
+               >
+                 Profil Saya
+               </router-link>
+               <button
+                 v-if="student && !demoMode"
+                 class="text-left px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-sky-400 font-semibold"
+                 @click="showProfileModal = false; openPhotoModal()"
+               >
+                 Ubah Foto Profil
+               </button>
+               <button
+                 v-if="demoMode"
+                 class="text-left px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-yellow-400 font-semibold"
+                 @click="showProfileModal = false; resetDemoSession()"
+               >
+                 Reset Demo
+               </button>
+               <button
+                 class="text-left px-4 py-3 rounded-lg bg-red-900/30 hover:bg-red-900/50 text-red-400 font-semibold"
+                 @click="showProfileModal = false; logout()"
+               >
+                 Keluar
+               </button>
+             </div>
+           </div>
+         </div>
+       </div>
+     </transition>
   </div>
 </template>
 
@@ -402,6 +428,7 @@ const route = useRoute();
 const isScrolled = ref(false);
 const student = ref<any>(null);
 const showMenu = ref(false);
+const showProfileModal = ref(false);
 const showDevInfo = ref(false);
 const showLoginModal = ref(false);
 const showPhotoModal = ref(false);
@@ -427,6 +454,7 @@ const dialog = useDialog();
 
 const openPhotoModal = () => {
   showMenu.value = false;
+  showProfileModal.value = false;
   photoError.value = '';
   photoFile.value = null;
   photoImage.value = null;
@@ -748,6 +776,11 @@ const logout = () => {
     setAuthToken(null);
     localStorage.removeItem('student');
     router.push('/login');
+};
+
+const openProfileModal = () => {
+  showMenu.value = false;
+  showProfileModal.value = true;
 };
 
 const resetDemoSession = () => {

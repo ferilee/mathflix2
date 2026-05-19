@@ -647,6 +647,7 @@ app.get('/students', (c) => {
   const major = (c.req.query('major') || '').toLowerCase();
   const school = (c.req.query('school') || '').toLowerCase();
   const grade = c.req.query('grade') || '';
+  const profiledOnly = c.req.query('profiled_only') === '1';
   const page = Math.max(1, Number(c.req.query('page') || 1));
   const limit = Math.max(1, Number(c.req.query('limit') || 10));
 
@@ -665,6 +666,15 @@ app.get('/students', (c) => {
   if (major) filtered = filtered.filter((r) => (r.major || '').toLowerCase().includes(major));
   if (school) filtered = filtered.filter((r) => (r.school || '').toLowerCase().includes(school));
   if (grade) filtered = filtered.filter((r) => Number(r.grade_level) === Number(grade));
+  if (profiledOnly) {
+    filtered = filtered.filter((r) =>
+      !!r.school &&
+      !!r.major &&
+      !!r.class_name &&
+      r.grade_level !== null &&
+      r.grade_level !== undefined
+    );
+  }
 
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / limit));

@@ -1027,6 +1027,7 @@ const fetchStudents = async () => {
             grade: filterGrade.value,
             teacher_id: isGuru ? teacherId : undefined,
             teacher_name: isAdmin ? filterTeacherName.value : undefined,
+            profiled_only: isAdmin ? 1 : undefined,
         };
         let data = (await api.get("/students", { params: baseParams })).data;
 
@@ -1483,6 +1484,7 @@ const fetchTotalStudentsAll = async () => {
                 page: 1,
                 limit: 1,
                 teacher_id: isGuru ? teacherId : undefined,
+                profiled_only: isAdmin ? 1 : undefined,
             },
         });
         totalStudentsAll.value = Number(
@@ -1500,6 +1502,7 @@ const fetchAllStudentsForBilling = async () => {
                 page: 1,
                 limit: 5000,
                 teacher_id: isGuru ? teacherId : undefined,
+                profiled_only: isAdmin ? 1 : undefined,
             },
         });
         const rows = data?.data || data || [];
