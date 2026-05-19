@@ -34,6 +34,79 @@ CREATE TABLE IF NOT EXISTS students (
 );
 `);
 
+db.exec(`
+CREATE TABLE IF NOT EXISTS materials (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  content TEXT,
+  major_target TEXT,
+  target_grade INTEGER,
+  target_class TEXT,
+  target_school TEXT,
+  teacher_name TEXT,
+  image_url TEXT,
+  is_featured INTEGER DEFAULT 0,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS quizzes (
+  id TEXT PRIMARY KEY,
+  material_id TEXT,
+  title TEXT NOT NULL,
+  passing_score INTEGER DEFAULT 75,
+  style TEXT DEFAULT 'millionaire',
+  image_url TEXT,
+  use_bank INTEGER DEFAULT 0,
+  question_count INTEGER,
+  difficulty_mix TEXT,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS questions (
+  id TEXT PRIMARY KEY,
+  quiz_id TEXT NOT NULL,
+  question_text TEXT NOT NULL,
+  question_type TEXT NOT NULL,
+  options TEXT,
+  correct_answer TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS assignments (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  due_date TEXT NOT NULL,
+  target_grade INTEGER,
+  target_major TEXT,
+  target_students TEXT,
+  rubric TEXT,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+  id TEXT PRIMARY KEY,
+  assignment_id TEXT NOT NULL,
+  student_id TEXT NOT NULL,
+  submission_url TEXT,
+  submission_note TEXT,
+  submitted_at TEXT,
+  grade INTEGER,
+  feedback TEXT,
+  rubric_scores TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(assignment_id, student_id)
+);
+`);
+
 type StudentRow = {
   id: string;
   nisn: string | null;
@@ -108,6 +181,17 @@ const upsertStudent = (input: any) => {
   return true;
 };
 
+const nowIso = () => new Date().toISOString();
+const parseJsonSafe = (value: any, fallback: any) => {
+  if (!value) return fallback;
+  if (Array.isArray(value) || typeof value === 'object') return value;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return fallback;
+  }
+};
+
 const normalizeStudent = (row: any): StudentRow => ({
   id: row.id,
   nisn: row.nisn ?? null,
@@ -168,6 +252,392 @@ const serializeDiscussion = (post: DiscussionPost, userId?: string | null) => ({
 
 app.get('/', (c) => {
   return c.text('Mathflix New API Running!');
+});
+
+// ---- MATERIALS ----
+app.get('/materials', (c) => {
+  const rows = db.query('SELECT * FROM materials ORDER BY datetime(created_at) DESC').all() as any[];
+  return c.json(rows.map((row) => ({ ...row, is_featured: !!row.is_featured })));
+});
+
+app.get('/materials/:id', (c) => {
+  const row = db.query('SELECT * FROM materials WHERE id = ?').get(c.req.param('id')) as any;
+  if (!row) return c.json({ error: 'material not found' }, 404);
+  return c.json({ ...row, is_featured: !!row.is_featured });
+});
+
+app.post('/materials', async (c) => {
+  const body = await c.req.json();
+  const id = crypto.randomUUID();
+  const createdAt = nowIso();
+  db.query(`
+    INSERT INTO materials (
+      id, title, description, content, major_target, target_grade, target_class, target_school,
+      teacher_name, image_url, is_featured, created_by, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    body?.title || 'Untitled',
+    body?.description || '',
+    body?.content || '',
+    body?.major_target || 'Semua',
+    toIntOrNull(body?.target_grade),
+    body?.target_class || null,
+    body?.target_school || null,
+    body?.teacher_name || null,
+    body?.image_url || null,
+    body?.is_featured ? 1 : 0,
+    body?.created_by || null,
+    createdAt,
+    createdAt,
+  );
+  const row = db.query('SELECT * FROM materials WHERE id = ?').get(id) as any;
+  return c.json({ ...row, is_featured: !!row.is_featured });
+});
+
+app.put('/materials/:id', async (c) => {
+  const id = c.req.param('id');
+  const existing = db.query('SELECT * FROM materials WHERE id = ?').get(id) as any;
+  if (!existing) return c.json({ error: 'material not found' }, 404);
+  const body = await c.req.json();
+  db.query(`
+    UPDATE materials SET
+      title=?, description=?, content=?, major_target=?, target_grade=?, target_class=?, target_school=?,
+      teacher_name=?, image_url=?, is_featured=?, created_by=?, updated_at=?
+    WHERE id=?
+  `).run(
+    body?.title ?? existing.title,
+    body?.description ?? existing.description,
+    body?.content ?? existing.content,
+    body?.major_target ?? existing.major_target,
+    toIntOrNull(body?.target_grade ?? existing.target_grade),
+    body?.target_class ?? existing.target_class,
+    body?.target_school ?? existing.target_school,
+    body?.teacher_name ?? existing.teacher_name,
+    body?.image_url ?? existing.image_url,
+    body?.is_featured !== undefined ? (body.is_featured ? 1 : 0) : existing.is_featured,
+    body?.created_by ?? existing.created_by,
+    nowIso(),
+    id,
+  );
+  const row = db.query('SELECT * FROM materials WHERE id = ?').get(id) as any;
+  return c.json({ ...row, is_featured: !!row.is_featured });
+});
+
+app.delete('/materials/:id', (c) => {
+  const id = c.req.param('id');
+  db.query('DELETE FROM materials WHERE id = ?').run(id);
+  return c.json({ status: 'ok' });
+});
+
+// ---- QUIZZES + QUESTIONS ----
+app.get('/quizzes', (c) => {
+  const rows = db.query('SELECT * FROM quizzes ORDER BY datetime(created_at) DESC').all() as any[];
+  return c.json(rows.map((row) => ({
+    ...row,
+    use_bank: !!row.use_bank,
+    difficulty_mix: parseJsonSafe(row.difficulty_mix, null),
+  })));
+});
+
+app.get('/quizzes/:id', (c) => {
+  const id = c.req.param('id');
+  const quiz = db.query('SELECT * FROM quizzes WHERE id = ?').get(id) as any;
+  if (!quiz) return c.json({ error: 'quiz not found' }, 404);
+  const questions = db.query('SELECT * FROM questions WHERE quiz_id = ? ORDER BY created_at ASC').all(id) as any[];
+  const mappedQuestions = questions.map((q) => ({
+    ...q,
+    options: parseJsonSafe(q.options, []),
+  }));
+  return c.json({
+    ...quiz,
+    use_bank: !!quiz.use_bank,
+    difficulty_mix: parseJsonSafe(quiz.difficulty_mix, null),
+    questions: mappedQuestions,
+  });
+});
+
+app.post('/quizzes', async (c) => {
+  const body = await c.req.json();
+  const id = crypto.randomUUID();
+  const createdAt = nowIso();
+  db.query(`
+    INSERT INTO quizzes (
+      id, material_id, title, passing_score, style, image_url, use_bank, question_count, difficulty_mix,
+      created_by, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    body?.material_id || null,
+    body?.title || 'Untitled Quiz',
+    toIntOrNull(body?.passing_score) ?? 75,
+    body?.style || 'millionaire',
+    body?.image_url || null,
+    body?.use_bank ? 1 : 0,
+    toIntOrNull(body?.question_count),
+    body?.difficulty_mix ? JSON.stringify(body.difficulty_mix) : null,
+    body?.created_by || null,
+    createdAt,
+    createdAt,
+  );
+  const row = db.query('SELECT * FROM quizzes WHERE id = ?').get(id) as any;
+  return c.json({ ...row, use_bank: !!row.use_bank, difficulty_mix: parseJsonSafe(row.difficulty_mix, null) });
+});
+
+app.put('/quizzes/:id', async (c) => {
+  const id = c.req.param('id');
+  const existing = db.query('SELECT * FROM quizzes WHERE id = ?').get(id) as any;
+  if (!existing) return c.json({ error: 'quiz not found' }, 404);
+  const body = await c.req.json();
+  db.query(`
+    UPDATE quizzes SET
+      material_id=?, title=?, passing_score=?, style=?, image_url=?, use_bank=?, question_count=?, difficulty_mix=?, updated_at=?
+    WHERE id=?
+  `).run(
+    body?.material_id ?? existing.material_id,
+    body?.title ?? existing.title,
+    toIntOrNull(body?.passing_score ?? existing.passing_score) ?? 75,
+    body?.style ?? existing.style,
+    body?.image_url ?? existing.image_url,
+    body?.use_bank !== undefined ? (body.use_bank ? 1 : 0) : existing.use_bank,
+    toIntOrNull(body?.question_count ?? existing.question_count),
+    body?.difficulty_mix ? JSON.stringify(body.difficulty_mix) : existing.difficulty_mix,
+    nowIso(),
+    id,
+  );
+  const row = db.query('SELECT * FROM quizzes WHERE id = ?').get(id) as any;
+  return c.json({ ...row, use_bank: !!row.use_bank, difficulty_mix: parseJsonSafe(row.difficulty_mix, null) });
+});
+
+app.delete('/quizzes/:id', (c) => {
+  const id = c.req.param('id');
+  db.query('DELETE FROM questions WHERE quiz_id = ?').run(id);
+  db.query('DELETE FROM quizzes WHERE id = ?').run(id);
+  return c.json({ status: 'ok' });
+});
+
+app.get('/quizzes/:id/questions', (c) => {
+  const id = c.req.param('id');
+  const rows = db.query('SELECT * FROM questions WHERE quiz_id = ? ORDER BY created_at ASC').all(id) as any[];
+  return c.json(rows.map((q) => ({ ...q, options: parseJsonSafe(q.options, []) })));
+});
+
+app.post('/quizzes/:id/questions', async (c) => {
+  const quizId = c.req.param('id');
+  const quiz = db.query('SELECT id FROM quizzes WHERE id = ?').get(quizId) as any;
+  if (!quiz) return c.json({ error: 'quiz not found' }, 404);
+  const body = await c.req.json();
+  const questionId = crypto.randomUUID();
+  db.query(`
+    INSERT INTO questions (id, quiz_id, question_text, question_type, options, correct_answer, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    questionId,
+    quizId,
+    body?.question_text || '',
+    body?.question_type || 'multiple_choice',
+    body?.options ? JSON.stringify(body.options) : JSON.stringify([]),
+    body?.correct_answer ?? '',
+    nowIso(),
+  );
+  const row = db.query('SELECT * FROM questions WHERE id = ?').get(questionId) as any;
+  return c.json({ ...row, options: parseJsonSafe(row.options, []) });
+});
+
+app.delete('/questions/:id', (c) => {
+  db.query('DELETE FROM questions WHERE id = ?').run(c.req.param('id'));
+  return c.json({ status: 'ok' });
+});
+
+// ---- ASSIGNMENTS ----
+app.get('/assignments', (c) => {
+  const rows = db.query('SELECT * FROM assignments ORDER BY datetime(created_at) DESC').all() as any[];
+  return c.json(rows.map((row) => ({
+    ...row,
+    target_students: parseJsonSafe(row.target_students, []),
+    rubric: parseJsonSafe(row.rubric, []),
+  })));
+});
+
+app.get('/assignments/my-assignments', (c) => {
+  const studentId = c.req.header('X-Student-ID') || '';
+  if (!studentId) return c.json([]);
+  const student = db.query('SELECT * FROM students WHERE id = ?').get(studentId) as any;
+  if (!student) return c.json([]);
+  const rows = db.query('SELECT * FROM assignments ORDER BY datetime(created_at) DESC').all() as any[];
+  const filtered = rows.filter((row) => {
+    const selected = parseJsonSafe(row.target_students, []) as string[];
+    const isDirect = selected.includes(studentId);
+    const gradeMatch = row.target_grade === null || row.target_grade === undefined || Number(row.target_grade) === Number(student.grade_level);
+    const majorMatch = !row.target_major || row.target_major === 'NONE' ? false : row.target_major === student.major;
+    const classModeMatch = gradeMatch && (row.target_major == null || row.target_major === student.major);
+    if (row.target_grade === -1 || row.target_major === 'NONE') return isDirect;
+    return isDirect || classModeMatch || majorMatch;
+  });
+  return c.json(filtered.map((row) => ({
+    ...row,
+    target_students: parseJsonSafe(row.target_students, []),
+    rubric: parseJsonSafe(row.rubric, []),
+  })));
+});
+
+app.get('/assignments/:id', (c) => {
+  const row = db.query('SELECT * FROM assignments WHERE id = ?').get(c.req.param('id')) as any;
+  if (!row) return c.json({ error: 'assignment not found' }, 404);
+  return c.json({
+    ...row,
+    target_students: parseJsonSafe(row.target_students, []),
+    rubric: parseJsonSafe(row.rubric, []),
+  });
+});
+
+app.post('/assignments', async (c) => {
+  const body = await c.req.json();
+  const id = crypto.randomUUID();
+  const createdAt = nowIso();
+  db.query(`
+    INSERT INTO assignments (
+      id, title, description, due_date, target_grade, target_major, target_students, rubric, created_by, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    body?.title || 'Untitled Assignment',
+    body?.description || '',
+    body?.due_date || createdAt,
+    toIntOrNull(body?.target_grade),
+    body?.target_major || null,
+    JSON.stringify(Array.isArray(body?.target_students) ? body.target_students : []),
+    JSON.stringify(Array.isArray(body?.rubric) ? body.rubric : []),
+    body?.created_by || null,
+    createdAt,
+    createdAt,
+  );
+  const row = db.query('SELECT * FROM assignments WHERE id = ?').get(id) as any;
+  return c.json({
+    ...row,
+    target_students: parseJsonSafe(row.target_students, []),
+    rubric: parseJsonSafe(row.rubric, []),
+  });
+});
+
+app.delete('/assignments/:id', (c) => {
+  const id = c.req.param('id');
+  db.query('DELETE FROM assignment_submissions WHERE assignment_id = ?').run(id);
+  db.query('DELETE FROM assignments WHERE id = ?').run(id);
+  return c.json({ status: 'ok' });
+});
+
+app.get('/assignments/:id/status', (c) => {
+  const assignmentId = c.req.param('id');
+  const studentId = c.req.header('X-Student-ID') || '';
+  if (!studentId) return c.json(null);
+  const row = db.query(`
+    SELECT * FROM assignment_submissions
+    WHERE assignment_id = ? AND student_id = ?
+  `).get(assignmentId, studentId) as any;
+  if (!row) return c.json(null);
+  return c.json({
+    ...row,
+    rubric_scores: parseJsonSafe(row.rubric_scores, []),
+  });
+});
+
+app.post('/assignments/:id/submit', async (c) => {
+  const assignmentId = c.req.param('id');
+  const studentId = c.req.header('X-Student-ID') || '';
+  if (!studentId) return c.json({ error: 'X-Student-ID required' }, 400);
+  const body = await c.req.json();
+  const existing = db.query(`
+    SELECT * FROM assignment_submissions WHERE assignment_id = ? AND student_id = ?
+  `).get(assignmentId, studentId) as any;
+  const now = nowIso();
+  if (existing) {
+    db.query(`
+      UPDATE assignment_submissions
+      SET submission_url=?, submission_note=?, submitted_at=?, updated_at=?
+      WHERE assignment_id=? AND student_id=?
+    `).run(body?.url || '', body?.note || '', now, now, assignmentId, studentId);
+  } else {
+    db.query(`
+      INSERT INTO assignment_submissions (
+        id, assignment_id, student_id, submission_url, submission_note, submitted_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(crypto.randomUUID(), assignmentId, studentId, body?.url || '', body?.note || '', now, now, now);
+  }
+  const row = db.query(`
+    SELECT * FROM assignment_submissions WHERE assignment_id = ? AND student_id = ?
+  `).get(assignmentId, studentId) as any;
+  return c.json({ ...row, rubric_scores: parseJsonSafe(row.rubric_scores, []) });
+});
+
+app.get('/assignments/:id/submissions', (c) => {
+  const assignmentId = c.req.param('id');
+  const assignment = db.query('SELECT * FROM assignments WHERE id = ?').get(assignmentId) as any;
+  if (!assignment) return c.json([]);
+  const selectedStudents = parseJsonSafe(assignment.target_students, []) as string[];
+  const allStudents = db.query('SELECT * FROM students ORDER BY full_name ASC').all() as any[];
+  const targets = allStudents.filter((s) => {
+    if (assignment.target_grade === -1 || assignment.target_major === 'NONE') return selectedStudents.includes(s.id);
+    const gradeOk = assignment.target_grade == null || Number(assignment.target_grade) === Number(s.grade_level);
+    const majorOk = assignment.target_major == null || assignment.target_major === s.major;
+    return selectedStudents.includes(s.id) || (gradeOk && majorOk);
+  });
+  const submissions = db.query('SELECT * FROM assignment_submissions WHERE assignment_id = ?').all(assignmentId) as any[];
+
+  const payload = targets.map((student) => {
+    const submission = submissions.find((sub) => sub.student_id === student.id);
+    return {
+      student,
+      status: submission ? 'submitted' : 'missing',
+      submission: submission ? { ...submission, rubric_scores: parseJsonSafe(submission.rubric_scores, []) } : null,
+    };
+  });
+  return c.json(payload);
+});
+
+app.post('/assignments/:id/grade', async (c) => {
+  const assignmentId = c.req.param('id');
+  const body = await c.req.json();
+  const studentId = String(body?.student_id || '');
+  if (!studentId) return c.json({ error: 'student_id required' }, 400);
+  const existing = db.query(`
+    SELECT * FROM assignment_submissions WHERE assignment_id = ? AND student_id = ?
+  `).get(assignmentId, studentId) as any;
+  const now = nowIso();
+  if (existing) {
+    db.query(`
+      UPDATE assignment_submissions
+      SET grade=?, feedback=?, rubric_scores=?, updated_at=?
+      WHERE assignment_id=? AND student_id=?
+    `).run(
+      toIntOrNull(body?.grade),
+      body?.feedback || '',
+      JSON.stringify(Array.isArray(body?.rubric_scores) ? body.rubric_scores : []),
+      now,
+      assignmentId,
+      studentId,
+    );
+  } else {
+    db.query(`
+      INSERT INTO assignment_submissions (
+        id, assignment_id, student_id, grade, feedback, rubric_scores, submitted_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      crypto.randomUUID(),
+      assignmentId,
+      studentId,
+      toIntOrNull(body?.grade),
+      body?.feedback || '',
+      JSON.stringify(Array.isArray(body?.rubric_scores) ? body.rubric_scores : []),
+      now,
+      now,
+      now,
+    );
+  }
+  const row = db.query(`
+    SELECT * FROM assignment_submissions WHERE assignment_id = ? AND student_id = ?
+  `).get(assignmentId, studentId) as any;
+  return c.json({ ...row, rubric_scores: parseJsonSafe(row.rubric_scores, []) });
 });
 
 app.get('/students', (c) => {

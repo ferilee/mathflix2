@@ -233,4 +233,153 @@ describe("mathflix-api endpoints", () => {
     const detailBody = await detail.json();
     expect(detailBody.full_name).toBe("Siswa Satu");
   });
+
+  test("materials CRUD persists in API database", async () => {
+    const create = await app.request("http://local/materials", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "Materi A",
+        description: "Desc",
+        major_target: "TKJ",
+        teacher_name: "Guru A",
+        created_by: "guru-a",
+      }),
+    });
+    expect(create.status).toBe(200);
+    const created = await create.json();
+    expect(created.id).toBeDefined();
+
+    const detail = await app.request(`http://local/materials/${created.id}`);
+    expect(detail.status).toBe(200);
+
+    const update = await app.request(`http://local/materials/${created.id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "Materi A Updated" }),
+    });
+    const updated = await update.json();
+    expect(updated.title).toBe("Materi A Updated");
+
+    const del = await app.request(`http://local/materials/${created.id}`, { method: "DELETE" });
+    expect(del.status).toBe(200);
+  });
+
+  test("quizzes CRUD and questions persist in API database", async () => {
+    const material = await app.request("http://local/materials", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "Materi Q", created_by: "guru-a" }),
+    });
+    const materialRow = await material.json();
+
+    const createQuiz = await app.request("http://local/quizzes", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        material_id: materialRow.id,
+        title: "Quiz A",
+        passing_score: 80,
+        created_by: "guru-a",
+      }),
+    });
+    expect(createQuiz.status).toBe(200);
+    const quiz = await createQuiz.json();
+
+    const addQuestion = await app.request(`http://local/quizzes/${quiz.id}/questions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        question_text: "2+2=?",
+        question_type: "multiple_choice",
+        options: ["3", "4"],
+        correct_answer: "4",
+      }),
+    });
+    expect(addQuestion.status).toBe(200);
+    const question = await addQuestion.json();
+
+    const detail = await app.request(`http://local/quizzes/${quiz.id}`);
+    const detailBody = await detail.json();
+    expect(detail.status).toBe(200);
+    expect(Array.isArray(detailBody.questions)).toBe(true);
+    expect(detailBody.questions.length).toBeGreaterThan(0);
+
+    const update = await app.request(`http://local/quizzes/${quiz.id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "Quiz A Updated" }),
+    });
+    const updated = await update.json();
+    expect(updated.title).toBe("Quiz A Updated");
+
+    const deleteQuestion = await app.request(`http://local/questions/${question.id}`, { method: "DELETE" });
+    expect(deleteQuestion.status).toBe(200);
+
+    const del = await app.request(`http://local/quizzes/${quiz.id}`, { method: "DELETE" });
+    expect(del.status).toBe(200);
+  });
+
+  test("assignments CRUD and submission/grade flow persists", async () => {
+    await app.request("http://local/students", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: "s-assignment",
+        full_name: "Siswa Assignment",
+        grade_level: 10,
+        major: "TKJ",
+      }),
+    });
+
+    const create = await app.request("http://local/assignments", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "Tugas A",
+        description: "Kerjakan",
+        due_date: new Date().toISOString(),
+        target_grade: 10,
+        target_major: "TKJ",
+        target_students: ["s-assignment"],
+        created_by: "guru-a",
+      }),
+    });
+    expect(create.status).toBe(200);
+    const assignment = await create.json();
+
+    const myAssignments = await app.request("http://local/assignments/my-assignments", {
+      headers: { "X-Student-ID": "s-assignment" },
+    });
+    expect(myAssignments.status).toBe(200);
+
+    const submit = await app.request(`http://local/assignments/${assignment.id}/submit`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "X-Student-ID": "s-assignment",
+      },
+      body: JSON.stringify({ url: "https://example.com", note: "done" }),
+    });
+    expect(submit.status).toBe(200);
+
+    const grade = await app.request(`http://local/assignments/${assignment.id}/grade`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        student_id: "s-assignment",
+        grade: 95,
+        feedback: "Bagus",
+      }),
+    });
+    expect(grade.status).toBe(200);
+
+    const submissions = await app.request(`http://local/assignments/${assignment.id}/submissions`);
+    expect(submissions.status).toBe(200);
+    const submissionsBody = await submissions.json();
+    expect(Array.isArray(submissionsBody)).toBe(true);
+
+    const del = await app.request(`http://local/assignments/${assignment.id}`, { method: "DELETE" });
+    expect(del.status).toBe(200);
+  });
 });
