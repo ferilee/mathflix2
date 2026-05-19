@@ -202,4 +202,35 @@ describe("mathflix-api endpoints", () => {
     });
     expect(del.status).toBe(200);
   });
+
+  test("profiling sync persists student data for admin monitor", async () => {
+    const sync = await app.request("http://local/billing/students/sync", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: "student-1@example.com",
+        nisn: "10001",
+        full_name: "Siswa Satu",
+        grade_level: 10,
+        class_name: "A",
+        major: "TKJ",
+        school: "SMK 1",
+        status: "active",
+      }),
+    });
+    expect(sync.status).toBe(200);
+    const syncBody = await sync.json();
+    expect(syncBody.upserted).toBe(1);
+
+    const list = await app.request("http://local/students?page=1&limit=10&search=siswa");
+    expect(list.status).toBe(200);
+    const listBody = await list.json();
+    expect(Array.isArray(listBody.data)).toBe(true);
+    expect(listBody.data.some((row: any) => row.id === "student-1@example.com")).toBe(true);
+
+    const detail = await app.request("http://local/students/student-1@example.com");
+    expect(detail.status).toBe(200);
+    const detailBody = await detail.json();
+    expect(detailBody.full_name).toBe("Siswa Satu");
+  });
 });

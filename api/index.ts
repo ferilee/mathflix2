@@ -1,10 +1,131 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import crypto from 'node:crypto';
+import Database from 'bun:sqlite';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 
 export const app = new Hono();
 
 app.use('*', cors());
+
+const dbPath = process.env.API_DB_PATH || './data/api.sqlite';
+mkdirSync(dirname(dbPath), { recursive: true });
+const db = new Database(dbPath, { create: true });
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS students (
+  id TEXT PRIMARY KEY,
+  nisn TEXT,
+  full_name TEXT NOT NULL,
+  major TEXT,
+  grade_level INTEGER,
+  school TEXT,
+  teacher_id TEXT,
+  teacher_name TEXT,
+  class_name TEXT,
+  hp INTEGER DEFAULT 100,
+  xp INTEGER DEFAULT 0,
+  ap INTEGER DEFAULT 0,
+  level INTEGER DEFAULT 1,
+  status TEXT DEFAULT 'active',
+  photo_profile TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+`);
+
+type StudentRow = {
+  id: string;
+  nisn: string | null;
+  full_name: string;
+  major: string | null;
+  grade_level: number | null;
+  school: string | null;
+  teacher_id: string | null;
+  teacher_name: string | null;
+  class_name: string | null;
+  hp: number;
+  xp: number;
+  ap: number;
+  level: number;
+  status: string;
+  photo_profile: string | null;
+  created_at: string;
+};
+
+const toIntOrNull = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? Math.trunc(num) : null;
+};
+
+const upsertStudent = (input: any) => {
+  const id = String(input?.id || '').trim();
+  const fullName = String(input?.full_name || input?.fullName || '').trim();
+  if (!id || !fullName) return false;
+  const now = new Date().toISOString();
+  const stmt = db.prepare(`
+    INSERT INTO students (
+      id, nisn, full_name, major, grade_level, school,
+      teacher_id, teacher_name, class_name, hp, xp, ap, level, status, photo_profile, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      nisn=excluded.nisn,
+      full_name=excluded.full_name,
+      major=excluded.major,
+      grade_level=excluded.grade_level,
+      school=excluded.school,
+      teacher_id=excluded.teacher_id,
+      teacher_name=excluded.teacher_name,
+      class_name=excluded.class_name,
+      hp=excluded.hp,
+      xp=excluded.xp,
+      ap=excluded.ap,
+      level=excluded.level,
+      status=excluded.status,
+      photo_profile=COALESCE(excluded.photo_profile, students.photo_profile),
+      created_at=COALESCE(students.created_at, excluded.created_at)
+  `);
+
+  stmt.run(
+    id,
+    input?.nisn || null,
+    fullName,
+    input?.major || null,
+    toIntOrNull(input?.grade_level ?? input?.gradeLevel),
+    input?.school || null,
+    input?.teacher_id || input?.teacherId || null,
+    input?.teacher_name || input?.teacherName || null,
+    input?.class_name || input?.className || null,
+    toIntOrNull(input?.hp) ?? 100,
+    toIntOrNull(input?.xp) ?? 0,
+    toIntOrNull(input?.ap) ?? 0,
+    toIntOrNull(input?.level) ?? 1,
+    String(input?.status || 'active'),
+    input?.photo_profile || input?.photoProfile || null,
+    input?.created_at || input?.createdAt || now,
+  );
+  return true;
+};
+
+const normalizeStudent = (row: any): StudentRow => ({
+  id: row.id,
+  nisn: row.nisn ?? null,
+  full_name: row.full_name,
+  major: row.major ?? null,
+  grade_level: row.grade_level ?? null,
+  school: row.school ?? null,
+  teacher_id: row.teacher_id ?? null,
+  teacher_name: row.teacher_name ?? null,
+  class_name: row.class_name ?? null,
+  hp: Number(row.hp ?? 100),
+  xp: Number(row.xp ?? 0),
+  ap: Number(row.ap ?? 0),
+  level: Number(row.level ?? 1),
+  status: row.status || 'active',
+  photo_profile: row.photo_profile ?? null,
+  created_at: row.created_at || new Date().toISOString(),
+});
 
 type DiscussionComment = {
   id: string;
@@ -47,6 +168,122 @@ const serializeDiscussion = (post: DiscussionPost, userId?: string | null) => ({
 
 app.get('/', (c) => {
   return c.text('Mathflix New API Running!');
+});
+
+app.get('/students', (c) => {
+  const teacherId = c.req.query('teacher_id') || '';
+  const teacherName = (c.req.query('teacher_name') || '').toLowerCase();
+  const search = (c.req.query('search') || '').toLowerCase();
+  const major = (c.req.query('major') || '').toLowerCase();
+  const school = (c.req.query('school') || '').toLowerCase();
+  const grade = c.req.query('grade') || '';
+  const page = Math.max(1, Number(c.req.query('page') || 1));
+  const limit = Math.max(1, Number(c.req.query('limit') || 10));
+
+  const rows = db.query('SELECT * FROM students ORDER BY datetime(created_at) DESC').all() as any[];
+  let filtered = rows.map(normalizeStudent);
+
+  if (teacherId) filtered = filtered.filter((r) => (r.teacher_id || '') === teacherId);
+  if (teacherName) filtered = filtered.filter((r) => (r.teacher_name || '').toLowerCase().includes(teacherName));
+  if (search) {
+    filtered = filtered.filter((r) =>
+      (r.full_name || '').toLowerCase().includes(search) ||
+      (r.nisn || '').toLowerCase().includes(search) ||
+      (r.id || '').toLowerCase().includes(search)
+    );
+  }
+  if (major) filtered = filtered.filter((r) => (r.major || '').toLowerCase().includes(major));
+  if (school) filtered = filtered.filter((r) => (r.school || '').toLowerCase().includes(school));
+  if (grade) filtered = filtered.filter((r) => Number(r.grade_level) === Number(grade));
+
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const offset = (page - 1) * limit;
+  const data = filtered.slice(offset, offset + limit);
+  return c.json({ data, total, page, limit, totalPages });
+});
+
+app.get('/students/:id', (c) => {
+  const id = c.req.param('id');
+  const row = db.query('SELECT * FROM students WHERE id = ?').get(id) as any;
+  if (!row) return c.json({ error: 'student not found' }, 404);
+  return c.json(normalizeStudent(row));
+});
+
+app.post('/students', async (c) => {
+  const body = await c.req.json();
+  const ok = upsertStudent(body);
+  if (!ok) return c.json({ error: 'id and full_name required' }, 400);
+  const row = db.query('SELECT * FROM students WHERE id = ?').get(String(body.id)) as any;
+  return c.json(row ? normalizeStudent(row) : body);
+});
+
+app.put('/students/:id', async (c) => {
+  const id = c.req.param('id');
+  const existing = db.query('SELECT * FROM students WHERE id = ?').get(id) as any;
+  if (!existing) return c.json({ error: 'student not found' }, 404);
+  const body = await c.req.json();
+  const merged = { ...normalizeStudent(existing), ...body, id };
+  const ok = upsertStudent(merged);
+  if (!ok) return c.json({ error: 'failed to update student' }, 400);
+  const row = db.query('SELECT * FROM students WHERE id = ?').get(id) as any;
+  return c.json(normalizeStudent(row));
+});
+
+app.delete('/students/:id', (c) => {
+  const id = c.req.param('id');
+  db.query('DELETE FROM students WHERE id = ?').run(id);
+  return c.json({ status: 'ok', deleted: id });
+});
+
+app.post('/students/bulk', async (c) => {
+  const body = await c.req.json();
+  const rows = Array.isArray(body) ? body : [];
+  let upserted = 0;
+  for (const row of rows) {
+    if (upsertStudent(row)) upserted += 1;
+  }
+  return c.json({ status: 'ok', upserted });
+});
+
+app.post('/students/bulk-delete', async (c) => {
+  const body = await c.req.json();
+  const ids = Array.isArray(body?.ids) ? body.ids.map((id: unknown) => String(id)) : [];
+  for (const id of ids) {
+    db.query('DELETE FROM students WHERE id = ?').run(id);
+  }
+  return c.json({ status: 'ok', deleted: ids.length });
+});
+
+app.get('/students/:id/recommendations', (c) => {
+  const id = c.req.param('id');
+  const student = db.query('SELECT * FROM students WHERE id = ?').get(id) as any;
+  if (!student) return c.json({ recommendations: [] });
+  const materials = [] as any[];
+  return c.json({ recommendations: materials });
+});
+
+app.post('/billing/students/sync', async (c) => {
+  const payload = await c.req.json();
+  const rows = Array.isArray(payload) ? payload : [payload];
+  let upserted = 0;
+  for (const row of rows) {
+    if (upsertStudent(row)) upserted += 1;
+  }
+  return c.json({ status: 'ok', upserted });
+});
+
+app.put('/billing/students/:studentId/gamification', async (c) => {
+  const studentId = c.req.param('studentId');
+  const row = db.query('SELECT * FROM students WHERE id = ?').get(studentId) as any;
+  if (!row) return c.json({ error: 'student not found' }, 404);
+  const body = await c.req.json();
+  const nextHp = body?.hp !== undefined ? Math.max(0, Math.min(100, Number(body.hp))) : Number(row.hp ?? 100);
+  const nextAp = body?.ap !== undefined ? Math.max(0, Number(body.ap)) : Number(row.ap ?? 0);
+  const nextStatus = nextHp < 60 ? 'debuff' : 'active';
+  db.query('UPDATE students SET hp = ?, ap = ?, status = ? WHERE id = ?').run(nextHp, nextAp, nextStatus, studentId);
+  const updated = db.query('SELECT * FROM students WHERE id = ?').get(studentId) as any;
+  return c.json(normalizeStudent(updated));
 });
 
 app.get('/discussions', (c) => {
