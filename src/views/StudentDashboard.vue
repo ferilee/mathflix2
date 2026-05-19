@@ -1,5 +1,25 @@
 <template>
   <div class="bg-black min-h-screen">
+    <div
+      v-if="isAdminPreview"
+      class="sticky top-0 z-40 bg-slate-950/95 border-b border-slate-800 px-4 md:px-16 py-3 flex flex-col md:flex-row gap-3 md:items-center md:justify-between"
+    >
+      <div class="text-xs md:text-sm text-slate-300 font-semibold">
+        Mode Preview Siswa (Admin/Guru)
+      </div>
+      <div class="flex items-center gap-2">
+        <select
+          v-model="selectedPreviewStudentId"
+          class="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 min-w-[220px]"
+          @change="handlePreviewStudentChange"
+        >
+          <option value="">Pilih siswa...</option>
+          <option v-for="s in previewStudents" :key="s.id" :value="s.id">
+            {{ s.full_name }} ({{ s.grade_level || '-' }} {{ s.major || '-' }})
+          </option>
+        </select>
+      </div>
+    </div>
 
     <!-- Hero Section (Main Quest) -->
     <div class="relative h-[85vh] w-full" data-tour="hero">
@@ -159,22 +179,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import api from '../api';
 
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { resolveStorageUrl } from '../utils/storage';
 import { isDemoMode, getDemoMaterials, getDemoQuizzes, getDemoStudent, getDemoRecommendations } from '../utils/demo';
 import { useDialog } from '../utils/dialog';
+import { getStaffUser } from '../utils/auth';
 
 const router = useRouter();
+const route = useRoute();
 const materials = ref<any[]>([]);
 const quizzes = ref<any[]>([]);
 const featuredMaterial = ref<any>(null);
 const student = ref<any>(null);
 const recommendations = ref<any[]>([]);
+const previewStudents = ref<any[]>([]);
+const selectedPreviewStudentId = ref('');
 const demoMode = isDemoMode();
 const dialog = useDialog();
+const staffUser = getStaffUser();
+const isAdminPreview = computed(
+  () =>
+    route.path.startsWith('/admin/student-dashboard') &&
+    (staffUser?.role === 'admin' || staffUser?.role === 'guru')
+);
 
 
 
@@ -221,12 +251,33 @@ const openMaterial = (id: string) => {
 };
 
 const openQuiz = (id: string) => {
-    const student = localStorage.getItem('student');
-    if (!student) {
+    if (!student.value) {
          router.push(`/login?redirect=/quiz/${id}`);
     } else {
          router.push(`/quiz/${id}`);
     }
+};
+
+const loadPreviewStudents = async () => {
+  if (!isAdminPreview.value) return;
+  try {
+    const { data } = await api.get('/students', { params: { page: 1, limit: 300 } });
+    const rows = Array.isArray(data?.data) ? data.data : [];
+    previewStudents.value = rows;
+    if (!selectedPreviewStudentId.value && rows.length > 0) {
+      selectedPreviewStudentId.value = rows[0].id;
+      student.value = rows[0];
+    }
+  } catch (e) {
+    console.error('Failed to load preview students', e);
+  }
+};
+
+const handlePreviewStudentChange = () => {
+  const selected = previewStudents.value.find((s: any) => s.id === selectedPreviewStudentId.value);
+  student.value = selected || null;
+  fetchData();
+  fetchRecommendations();
 };
 
 const fetchData = async () => {
@@ -301,12 +352,19 @@ const addToMyList = (material: any) => {
 const intervalId = ref<any>(null);
 
 onMounted(() => {
-    const saved = localStorage.getItem('student');
-    if (saved) {
-        student.value = JSON.parse(saved);
+    if (isAdminPreview.value) {
+        loadPreviewStudents().then(() => {
+            fetchData();
+            fetchRecommendations();
+        });
+    } else {
+        const saved = localStorage.getItem('student');
+        if (saved) {
+            student.value = JSON.parse(saved);
+        }
+        fetchData();
+        fetchRecommendations();
     }
-    fetchData();
-    fetchRecommendations();
     // Poll every 5 seconds for live updates
     if (!demoMode) {
         intervalId.value = setInterval(fetchData, 5000);

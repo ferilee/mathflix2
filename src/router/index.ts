@@ -89,6 +89,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: "Manajemen Siswa", roles: ["admin", "guru"] },
       },
       {
+        path: "student-dashboard",
+        name: "StudentDashboardPreview",
+        component: () => import("../views/StudentDashboard.vue"),
+        meta: { title: "Dashboard Siswa", roles: ["admin", "guru"] },
+      },
+      {
         path: "activity",
         name: "AdminActivity",
         component: () => import("../views/AdminActivity.vue"),

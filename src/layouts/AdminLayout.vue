@@ -24,6 +24,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
           Heroes (Siswa)
         </router-link>
+        <router-link v-if="isAdmin || isGuru" to="/admin/student-dashboard" class="nav-item">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"></path><path d="M3 9h18"></path><path d="M9 21V9"></path></svg>
+          Dashboard Siswa
+        </router-link>
           </div>
         </div>
         <div class="space-y-2">
@@ -260,6 +264,7 @@
               <div class="grid grid-cols-2 gap-3">
                 <router-link to="/admin/dashboard" class="mobile-link" @click="showMenu = false">Dashboard</router-link>
                 <router-link to="/admin/students" class="mobile-link" @click="showMenu = false">Siswa</router-link>
+                <router-link to="/admin/student-dashboard" class="mobile-link" @click="showMenu = false">Dashboard Siswa</router-link>
               </div>
 
               <div class="text-xs uppercase tracking-[0.2em] text-slate-400 mt-4">Konten</div>
