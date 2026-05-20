@@ -1,6 +1,8 @@
 <template>
   <div class="px-4 md:px-12 py-8 min-h-screen text-white">
-      <h1 class="text-3xl font-bold mb-2">Pencapaian Saya</h1>
+      <h1 class="text-4xl md:text-5xl font-extrabold text-[#ffed4a] mb-2 uppercase tracking-widest drop-shadow-[0_4px_4px_rgba(0,0,0,0.6)]" style="-webkit-text-stroke: 1px #b45309;">
+         🏅 Pencapaian Saya
+      </h1>
       <p class="text-gray-400 mb-8">Koleksi lencana dan prestasi belajarmu (Gamification).</p>
 
       <div v-if="loading" class="text-center text-gray-500">Memuat lencana...</div>

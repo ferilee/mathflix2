@@ -1,6 +1,8 @@
 <template>
   <div class="px-4 md:px-12 py-8 max-w-4xl mx-auto min-h-screen text-white">
-     <h1 class="text-3xl font-bold mb-8">Diskusi Kelas</h1>
+     <h1 class="text-4xl md:text-5xl font-extrabold text-[#ffed4a] mb-10 uppercase tracking-widest drop-shadow-[0_4px_4px_rgba(0,0,0,0.6)]" style="-webkit-text-stroke: 1px #b45309;">
+        💬 Diskusi Kelas
+     </h1>
 
      <!-- Create Post -->
      <div class="bg-gray-800 p-6 rounded-xl shadow-lg mb-6 border border-gray-700">

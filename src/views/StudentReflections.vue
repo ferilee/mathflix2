@@ -39,7 +39,9 @@
           </div>
       </div>
 
-      <h1 class="text-3xl font-bold mb-2">Jurnal Refleksi</h1>
+      <h1 class="text-4xl md:text-5xl font-extrabold text-[#ffed4a] mb-2 uppercase tracking-widest drop-shadow-[0_4px_4px_rgba(0,0,0,0.6)]" style="-webkit-text-stroke: 1px #b45309;">
+         📖 Jurnal Refleksi
+      </h1>
       <p class="text-gray-400 mb-8">Refleksikan apa yang telah kamu pelajari hari ini (Tahap Transform)</p>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
