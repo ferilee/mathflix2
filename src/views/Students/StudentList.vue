@@ -3,6 +3,7 @@
         class="bg-white dark:bg-slate-800 p-6 rounded shadow transition-colors"
     >
         <div
+            v-show="false"
             class="mb-6 flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-center bg-white dark:bg-slate-800 p-4 rounded shadow border dark:border-gray-700"
         >
             <div>
@@ -216,6 +217,7 @@
         </div>
 
         <div
+            v-show="false"
             class="mb-6 bg-white dark:bg-slate-800 p-6 rounded shadow border border-slate-200 dark:border-slate-700"
         >
             <div class="flex items-center justify-between mb-4">

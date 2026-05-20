@@ -19,6 +19,8 @@ services:
     container_name: mathflix2-api
     env_file:
       - .env
+    volumes:
+      - ./api/data:/app/data
     networks:
       - ferileenet
     restart: unless-stopped
